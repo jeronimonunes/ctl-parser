@@ -1,0 +1,171 @@
+{
+	if(typeof(Java)=="object") {
+		var CtlFile = Java.type("br.ufmg.dcc.nanocomp.ctl.model.File");
+		var CtlSet = Java.type("br.ufmg.dcc.nanocomp.ctl.model.Set");
+		var CtlVariable = Java.type("br.ufmg.dcc.nanocomp.ctl.model.Variable");
+		var CtlDefine = Java.type("br.ufmg.dcc.nanocomp.ctl.model.Define");
+		var CtlFunctionWrapper = Java.type("br.ufmg.dcc.nanocomp.ctl.model.FunctionWrapper");
+		var CtlList = Java.type("br.ufmg.dcc.nanocomp.ctl.model.List");
+		var CtlClass = Java.type("br.ufmg.dcc.nanocomp.ctl.model.Class");
+        var CtlVector3 = Java.type("br.ufmg.dcc.nanocomp.ctl.model.Vector3");
+        var CtlDefineParam = Java.type("br.ufmg.dcc.nanocomp.ctl.model.DefineParam");
+		var CtlDefineFunction = Java.type("br.ufmg.dcc.nanocomp.ctl.model.DefineFunction");
+        var Integer = Java.type("java.lang.Integer").valueOf;
+        var Double = Java.type("java.lang.Double").valueOf;
+        var CtlBasicFunction = Java.type("br.ufmg.dcc.nanocomp.ctl.model.BasicFunction"); 
+        var Functions = {
+        	"/": Java.type("br.ufmg.dcc.nanocomp.ctl.model.functions.Div"),
+			"*": Java.type("br.ufmg.dcc.nanocomp.ctl.model.functions.Mul"),
+			"-": Java.type("br.ufmg.dcc.nanocomp.ctl.model.functions.Sub"),
+			"+": Java.type("br.ufmg.dcc.nanocomp.ctl.model.functions.Sum")
+        }
+	} else {
+		var CtlFile = function(objects){this.objects = objects};
+		var CtlSet = function(name,value){this.name = name; this.value = value};
+		var CtlVariable = function(name,value){this.name = name; this.value = value};
+        var zero = new CtlVariable(null,0);
+		var CtlDefine = function(value){return value};
+		var CtlFunctionWrapper = function(name,args){this.name = name; this.args = args};
+        var CtlBasicFunction = function(name,args){this.name = name; this.args = args};
+		var CtlDefineFunction = function(name,value){this.name = name; this.value = value};
+		var CtlList = function(elements){return elements};
+		var CtlClass = function(name,properties){this.name = name; this.properties = properties};
+        var CtlVector3 = function(x,y,z){this.x = x?x:zero;this.y=y?y:zero;this.z=z?z:zero};
+        var CtlDefineParam = function(value){this.value = value};
+        var Integer = parseInt;
+        var Double = parseFloat;
+        var Functions = {};
+	}
+	
+    var functions = {};
+	var memory = {};
+	var fargs = {};
+	var fname = null;
+}
+
+File
+	= objects:(SetParam/Set/DefineParam/Define/DefineFunction/Function)* {
+		return new CtlFile(objects);
+	}
+
+Set
+	= _ "(" _ "set!" __ name:Id _ value:Variable _ ")" _ {
+    	return new CtlSet(name,value);
+    }
+
+SetParam
+	= _ "(" _ "set-param!" __ name:Id _ value:Variable _ ")" _ {
+    	return new CtlSetParam(name,value);
+    }
+
+Define
+	= _ "(" _ "define" __ name:Id _ value:Variable _ ")" _ {
+    	memory[name] = value;
+    	value.name = name;
+    	return new CtlDefine(value);
+    }
+    
+DefineFunction
+	= _ "(" _ "define" __ func:DefFunction _ body:Function &{fargs={}; return true} _ ")" _ {
+		return functions[fname] = new CtlDefineFunction(func,body);
+    }
+
+DefFunction
+	= _ "(" _ name:Id _ args:FuncArg* &{fname=name;return true} _ ")" _ {
+		return new CtlBasicFunction(name,args);
+	}
+	/ _ "(" _ name:DefFunction _ args:FuncArg* _ ")" _ {
+		return new CtlFunctionWrapper(name,args);
+	}
+
+FuncArg
+	= _ name:Id _ {
+		return fargs[name] = new CtlVariable(name,null);
+	}
+
+Function
+	= _ "(" _ name:Id _ &{return functions[name]!=undefined} _ args:Variable* _ ")" _ {
+		return new CtlBasicFunction(name,args,functions[name]);
+	}
+	/ _ "(" _ name:Id _ &{return Functions[name]!=undefined} _ args:Variable* _ ")" _ {
+		return new Functions[name](args);
+	}
+	/ _ "(" _ name:Id _ args:Variable* _ ")" _ {
+		return new CtlBasicFunction(name,args);
+	}
+	/ _ "(" _ name:Function _ args:Variable* _ ")" _ {
+		return new CtlFunctionWrapper(name,args);
+	}
+
+DefineParam
+	= _ "(" _ "define-param" __ name:Id _ value:Variable _ ")" _ {
+    	memory[name] = value;
+    	value.name = name;
+    	return new CtlDefineParam(value);
+    }
+
+Variable
+	= _ value:(List/Class/Vector/Number/Function) _ {
+		return new CtlVariable(null,value);
+	}
+	/ _ name:Id &{return fargs[name]!=undefined} _ {
+		return fargs[name];
+	}
+	/ _ name:Id &{return memory[name]!=undefined} _ {
+		return memory[name];
+	}
+    / _ name:Id {
+    	return new CtlVariable(name,null);
+    }
+
+Vector
+	= _ "(" _ "vector3" __ x:Variable _ ")" _ {
+    	return new CtlVector3(x);
+    }
+    / _ "(" _ "vector3" __ x:Variable _ y:Variable _ ")" _ {
+    	return new CtlVector3(x,y);
+    }
+    / _ "(" _ "vector3" __ x:Variable _ y:Variable _ z:Variable _ ")" _ {
+    	return new CtlVector3(x,y,z);
+    }
+
+List
+	= _ "(" _ "list" _ elements:Variable* _ ")" _ {
+    	return new CtlList(elements);
+    }
+
+Class
+	= _ "(" _ "make" _ name:Id _ properties:Property* _ ")" _ {
+    	var vs = {};
+        for(var i in properties){
+        	var v = properties[i];
+        	vs[v.name] = v.value;
+        }
+    	return new CtlClass(name,vs);
+    }
+
+Property
+	= _ "(" _ name:Id _ x:Variable _ ")" _ {
+		return {name:name,value:x};
+	}
+    / _ "(" _ name:Id _ x:Variable _ y:Variable _ ")" _ {
+		return {name:name,value:new CtlVariable(null,new CtlVector3(x,y))};
+	}
+    / _ "(" _ name:Id _ x:Variable _ y:Variable _ z:Variable _ ")" _ {
+		return {name:name,value:new CtlVariable(null,new CtlVector3(x,y,z))};
+	}
+
+Number
+	= [+-]? [0-9]+ '.' [0-9]+						{ return Double(text()) }
+	/ [+-]? [0-9]+									{ return Integer(text()) }
+    / "infinity"									{ return Infinity }
+    / "no-size"										{ return NaN }
+
+Id
+	= [^ \t\n\r;()]+ {return text()}
+
+_ "Space or Comment Optional"
+	= ((";"[^\n]*)? [ \t\n\r])*
+
+__ "Space or Comment Required"
+	= ((";"[^\n]*)? [ \t\n\r])+
