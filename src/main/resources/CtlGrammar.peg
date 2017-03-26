@@ -37,7 +37,7 @@ Variable
 		return argsMemory[name];
 	}
 	/ _ name:Id _ &{return memory[name]!=undefined} {
-		return memory[name].args[0];
+		return memory[name];
 	}
 	/_ value:Constant _ {return value}
 
@@ -97,7 +97,8 @@ Function
 
 DefineVariable
 	= "(" _ name:("define-param"/"define"/"set!"/"set-param!") __ id:Id _ value:Variable _ ")" {
-		return memory[id] = new CtlSimpleFunction(name,[new CtlDeclaredVariable(id,value),value]);
+		memory[id] = value;
+		return new CtlSimpleFunction(name,[new CtlDeclaredVariable(id,value),value]);
 	}
 
 DefineFunction
